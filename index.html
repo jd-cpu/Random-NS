@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>신경외과 랜덤 질문야마 퀴즈</title>
+  <link rel="manifest" href="manifest.json?v=5">
+  <meta name="theme-color" content="#4CAF50">
+  <style>
+    body { font-family: Arial, sans-serif; max-width:800px; margin:20px auto; padding:16px; text-align:center; }
+    header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+    h1 { margin:0; font-size:1.25rem; }
+    #status { color:#666; font-size:0.95rem; margin-top:8px; text-align:left; }
+    .question { margin:20px 0; font-size:1.15rem; white-space:pre-line; text-align:left; }
+    .answer { margin-top:10px; font-weight:600; color:#0a6; white-space:pre-line; display:none; text-align:left; }
+    .controls { margin-top:18px; }
+    button { padding:10px 14px; margin:6px; font-size:1rem; }
+    .progress-wrap { margin-top:14px; text-align:left; }
+    .progress-info { font-size:0.92rem; color:#444; margin-bottom:6px; }
+    .progress-bar { width:100%; height:12px; background:#eee; border-radius:8px; overflow:hidden; }
+    .progress-inner { height:100%; width:0%; background:#4caf50; transition: width 0.25s ease; }
+    small.note { display:block; color:#888; margin-top:8px; text-align:left; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>신경외과 랜덤 질문 퀴즈</h1>
+    <div>
+      <button id="btnToggleMode">복습 모드로</button>
+      <button id="btnReset">초기화</button>
+    </div>
+  </header>
+
+  <div id="status" aria-live="polite">로딩 중...</div>
+
+  <div class="question" id="question">문제가 여기에 표시됩니다.</div>
+  <div class="answer" id="answer"></div>
+
+  <div class="controls" id="controls">
+    <button id="btnShowAnswer">정답 보기</button>
+    <button id="btnMarkWrong">오답 저장</button>
+    <button id="btnPrev">이전 문제</button>
+    <button id="btnNext">다음 문제</button>
+    <!-- 복습 모드에서 첫 문제로 돌아가기 버튼 -->
+    <button id="btnRestartReview" style="display:none;">복습 첫 문제로</button>
+    <!-- 복습 모드에서 오답 제거 버튼 -->
+    <button id="btnRemoveWrong" style="display:none;">오답 제거</button>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-info" id="progressInfo">진행: 0 / 0 (남음: 0)</div>
+    <div class="progress-bar"><div id="progressInner" class="progress-inner"></div></div>
+    <small class="note">※ 정답 보기 버튼은 정답만 보여줍니다. 다음 문제로 이동하려면 '다음 문제' 버튼을 누르세요.</small>
+  </div>
+
+<script>
+  // 기존 문제 데이터
+  const questions = [
+    { q: "C1의 burst fracture를 다른 말로 뭐라고 하는지?", a: "Jefferson's fracture <br><img src='1.png' style='max-width:600px;'>" },
+    { q: "Low motor 정상, upper motor 비정상이다. 무슨 질환인가?", a: "Central cord syndrome <br><img src='2.png' style='max-width:600px;'>" },
+    { q: "Motor와 관련된 척수의 tract는? Central cord syndrome에서는 왜 상지만 비정상인가?", a: "Corticospinal tract, Corticospinal tract이 spinal cord 가운데에서부터 C-T-L-S 순서이기 때문이다. <br><img src='3.png' style='max-width:600px;'><img src='4.png' style='max-width:600px;'>" },
+    { q: "Odontoid process 뒤의 ligament는?", a: "Alar lig., Transverse lig. <br><img src='5.png' style='max-width:600px;'><img src='6.png' style='max-width:600px;'>" },
+    { q: "C1과 C2를 지지하는 ligament는?", a: "Transverse lig. <br><img src='7.png' style='max-width:600px;'><img src='8.png' style='max-width:600px;'>" },
+    { q: "아래 그림의 1번 구조물을 뭐라고 하는가?", a: "Odontoid process <br><img src='9.png' style='max-width:600px;'>" },
+    { q: "(MRI lateral view 사진에서 척추 뒤쪽을 짚으시면서)구조물의 명칭은?", a: "Spinous process <br><img src='10.png' style='max-width:600px;'>" },
+    { q: "등 midline 절개 후 보이는 fascia는?", a: "Thoracolumbar fascia <br><img src='11.png' style='max-width:600px;'>" },
+    { q: "Thoracolumbar fascia 아래에 있는 근육은?", a: "Erector spinae muscle <br><img src='12.png' style='max-width:600px;'>" },
+    { q: "Erector spinae m.의 구성은?", a: "Spinalis, Longissimus, Iliocostalis <br><img src='13.png' style='max-width:600px;'><img src='14.png' style='max-width:600px;'><img src='15.png' style='max-width:600px;'>" },
+    { q: "Iliocostalis가 붙는 곳은?", a: "Ilium, rib <br><img src='16.png' style='max-width:600px;'>" },
+    { q: "T4는 무슨 neuron인가? Motor? Sensory? ", a: "(Nipple) sensory(해설 참조) <br><img src='17.png' style='max-width:600px;'><img src='18.png' style='max-width:600px;'>" },
+    { q: "Hoffman 검사가 무슨 검사야? 어떻게 하는 검사야?", a: "UMN 이상을 보는 검사로, cervical myelopathy를 확인하기 위한 검사이다. <br>중지의 distal phalynx를 extension 시키는 방향으로 튕기면 검지가 flexion 될 경우 양성이다. <br><img src='19.png' style='max-width:600px;'>" },
+    { q: "PLL(Posterior longitudinal ligament)는 disc 뒤에 있어, 앞에 있어?", a: "뒤 <br><img src='20.png' style='max-width:600px;'><img src='21.png' style='max-width:600px;'>" },
+    { q: "지금 물 나오는 게 뭐야? 어디로부터 나오는 거지?", a: "CSF, subarachnoid space" },
+    { q: "Schwannoma가 뇌에도 있어? Schwann cell이 CNS야 PNS야?", a: "네, PNS" },
+    { q: "Meningioma(Arachnoid cell origin)는 어떤 sign이 보여?", a: "Dural tail sign <br><img src='22.png' style='max-width:600px;'>" },
+    { q: "Caseating granuloma가 뭐야?", a: "내부에 죽은 세포가 있는 육아종으로써, 결핵 및 기타 전염병들에 의해 유발된다. <br><img src='23.png' style='max-width:600px;'>" },
+    { q: "MRI/CT에서 복부 척추 바로 앞에 보이는 동그란 것은?", a: "Abdominal aorta <br><img src='24.png' style='max-width:600px;'><img src='25.png' style='max-width:600px;'>" },
+    { q: "Cauda equina는 어디에서부터 시작해?", a: "L1-L2 사이에서 시작합니다. <br><img src='26.png' style='max-width:600px;'>" },
+    { q: "Nerve fiber 중 Ab, Ad, C가 있는데, 이들 중 뭐가 제일 두꺼워?", a: "Ab <br><img src='27.png' style='max-width:600px;'>" },
+    { q: "촉각을 전달하는 Ab 섬유가 흥분하면 SG(substantia gelatinosa)세포가 흥분되어 T세포에 정보전달이 안 돼서, 통증이 뇌로 전달되지 않는 이론이 뭐야?", a: "Gate control theory입니다. <br><img src='28.png' style='max-width:600px;'><img src='29.png' style='max-width:600px;'>" },
+    { q: "Ischemic stroke의 종류는?", a: "Large artery atherosclerosis, cardioembolism, small artery occlusion, stroke of other determined etiology, stroke of undetermined etiology <br><img src='30.png' style='max-width:600px;'><img src='31.png' style='max-width:600px;'>" },
+    { q: "Ischemic stroke에서 SOE, SUE의 차이는?", a: "SOE는 LAA, CE, SVO를 제외한 다른 원인, SUE는 원인을 모름." },
+    { q: "", a: "" },
+    { q: "", a: "" },
+    { q: "", a: "" },
+    { q: "", a: "" },
+    { q: "", a: "" },
+    { q: "", a: "" },
+    { q: "", a: "" },
+    { q: "", a: "" },
+    { q: "", a: "" },
+    { q: "", a: "" },
+    { q: "", a: "" },
+    { q: "", a: "" },
+    { q: "", a: "" },
+    { q: "", a: "" },
+    { q: "", a: "" },
+    { q: "", a: "" },
+    { q: "", a: "" },
+    { q: "", a: "" }
+  ];
+
+  const KEY = {
+    WRONG: 'quiz_wrong_v1',
+    MODE: 'quiz_mode_v1',
+    NORMAL_ORDER: 'quiz_normal_order_v1',
+    NORMAL_IDX: 'quiz_normal_idx_v1',
+    REVIEW_ORDER: 'quiz_review_order_v1',
+    REVIEW_IDX: 'quiz_review_idx_v1'
+  };
+
+  let wrongList   = JSON.parse(localStorage.getItem(KEY.WRONG) || '[]');
+  let mode        = localStorage.getItem(KEY.MODE) || 'normal';
+  let orderNormal = JSON.parse(localStorage.getItem(KEY.NORMAL_ORDER) || 'null');
+  let idxNormal   = parseInt(localStorage.getItem(KEY.NORMAL_IDX) || '0', 10);
+  let orderReview = JSON.parse(localStorage.getItem(KEY.REVIEW_ORDER) || 'null');
+  let idxReview   = parseInt(localStorage.getItem(KEY.REVIEW_IDX) || '0', 10);
+
+  const elStatus          = document.getElementById('status');
+  const elQuestion        = document.getElementById('question');
+  const elAnswer          = document.getElementById('answer');
+  const elBtnShow         = document.getElementById('btnShowAnswer');
+  const elBtnWrong        = document.getElementById('btnMarkWrong');
+  const elBtnNext         = document.getElementById('btnNext');
+  const elBtnPrev         = document.getElementById('btnPrev');
+  const elBtnToggle       = document.getElementById('btnToggleMode');
+  const elBtnReset        = document.getElementById('btnReset');
+  const elProgressInfo    = document.getElementById('progressInfo');
+  const elProgressInner   = document.getElementById('progressInner');
+  const elBtnRestartReview= document.getElementById('btnRestartReview');
+  const elBtnRemoveWrong  = document.getElementById('btnRemoveWrong');
+
+  function shuffledArray(n){
+    const arr = Array.from({length:n}, (_,i)=>i);
+    for(let i=arr.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [arr[i],arr[j]]=[arr[j],arr[i]];
+    }
+    return arr;
+  }
+
+  function saveAll(){
+    localStorage.setItem(KEY.WRONG, JSON.stringify(wrongList));
+    localStorage.setItem(KEY.MODE, mode);
+    if(orderNormal) localStorage.setItem(KEY.NORMAL_ORDER, JSON.stringify(orderNormal));
+    localStorage.setItem(KEY.NORMAL_IDX, String(idxNormal));
+    if(orderReview) localStorage.setItem(KEY.REVIEW_ORDER, JSON.stringify(orderReview));
+    localStorage.setItem(KEY.REVIEW_IDX, String(idxReview));
+  }
+
+  function clearAll(){
+    localStorage.removeItem(KEY.WRONG);
+    localStorage.removeItem(KEY.MODE);
+    localStorage.removeItem(KEY.NORMAL_ORDER);
+    localStorage.removeItem(KEY.NORMAL_IDX);
+    localStorage.removeItem(KEY.REVIEW_ORDER);
+    localStorage.removeItem(KEY.REVIEW_IDX);
+    wrongList = [];
+    mode = 'normal';
+    orderNormal=null; orderReview=null;
+    idxNormal=0; idxReview=0;
+  }
+
+  function ensureOrders(skipShuffle=false){
+    // ✅ 일반 모드 순서 보장 (기본: 처음 한 번 섞고 고정)
+    if(!Array.isArray(orderNormal) || orderNormal.length !== questions.length){
+      orderNormal = Array.from({length: questions.length}, (_,i)=>i);
+      if(!skipShuffle){
+        orderNormal.sort(()=>Math.random()-0.5);
+      }
+    }
+
+    // ✅ 복습 모드 순서 보장
+    if(!Array.isArray(orderReview) || orderReview.length !== wrongList.length){
+      orderReview = Array.from({length: wrongList.length}, (_,i)=>i);
+    }
+
+    // ✅ 인덱스 보정
+    idxNormal = Math.min(Math.max(0, idxNormal), Math.max(0, orderNormal.length-1));
+    idxReview = Math.min(Math.max(0, idxReview), Math.max(0, wrongList.length-1));
+  }
+
+  function currentListAndIndex(){
+    if(mode==='normal'){
+      return {listType:'normal', order:orderNormal, idx:idxNormal, total:orderNormal.length};
+    } else {
+      return {listType:'review', order:orderReview, idx:idxReview, total:orderReview.length};
+    }
+  }
+
+  function getCurrentQuestion(){
+    const info = currentListAndIndex();
+    if(info.total===0) return null;
+    if(info.listType==='normal'){
+      return questions[info.order[info.idx]];
+    } else {
+      return wrongList[info.order[info.idx]];
+    }
+  }
+
+  function updateProgressBar(idx,total,percent){
+    elProgressInfo.innerText=`진행: ${idx}/${total}  (${percent}%)`;
+    elProgressInner.style.width=total===0?'0%':`${percent}%`;
+  }
+
+  function updateToggleText(){
+    elBtnToggle.textContent = mode==='normal'?`복습 모드 (${wrongList.length})`:'일반 모드로';
+  }
+
+  function render(skipShuffle=false){
+    ensureOrders(skipShuffle);
+    saveAll();
+    const info=currentListAndIndex();
+
+    // 버튼 표시
+    if(mode==='review' && info.total>0){
+      elBtnRestartReview.style.display='inline-block';
+      elBtnRemoveWrong.style.display='inline-block';
+    } else {
+      elBtnRestartReview.style.display='none';
+      elBtnRemoveWrong.style.display='none';
+    }
+
+    if(info.total===0){
+      elStatus.innerText = mode==='normal'? '문제가 비어있습니다. questions 배열을 채워주세요.' : '복습할 문제가 없습니다.';
+      elQuestion.innerText = mode==='normal'? '문제가 없습니다.' : '복습할 문제가 없습니다.';
+      elAnswer.style.display='none';
+      updateProgressBar(0,info.total,0);
+      updateToggleText();
+      return;
+    }
+
+    // 완료 상태
+    if(info.idx >= info.total){
+      elQuestion.innerText='모든 문제가 완료되었습니다.';
+      elAnswer.style.display='none';
+      updateProgressBar(info.total, info.total, 100);
+      updateToggleText();
+      return;
+    }
+
+    const cur = getCurrentQuestion();
+    if(!cur){
+      elQuestion.innerText='문제가 없습니다.';
+      elAnswer.style.display='none';
+      updateProgressBar(info.idx,info.total,Math.round((info.idx/Math.max(1,info.total))*100));
+      updateToggleText();
+      return;
+    }
+
+    elQuestion.innerHTML = cur.q;
+    elAnswer.innerHTML = cur.a;
+    elAnswer.style.display='none';
+
+    const currentNumber=info.idx+1;
+    const remaining=Math.max(0,info.total-info.idx-1);
+    elStatus.innerText=`모드: ${mode==='normal'?'일반':'복습'}  •  ${currentNumber} / ${info.total}  (남음: ${remaining})`;
+    updateProgressBar(info.idx, info.total, Math.round((info.idx/Math.max(1,info.total))*100));
+    updateToggleText();
+  }
+
+  function showAnswer(){
+    const cur = getCurrentQuestion();
+    if(!cur) return;
+    elAnswer.style.display='block';
+  }
+
+  function markWrong(){
+    const info=currentListAndIndex();
+    if(info.total===0 || info.idx>=info.total) return;
+    const cur=getCurrentQuestion();
+    if(!cur) return;
+    if(!wrongList.some(it=>it.q===cur.q && it.a===cur.a)){
+      wrongList.push({q:cur.q,a:cur.a});
+      orderReview = Array.from({length: wrongList.length}, (_,i)=>i); // 새로 고정
+      idxReview=Math.min(idxReview, orderReview.length-1);
+      saveAll();
+      updateToggleText();
+    }
+  }
+
+  function removeWrong(){
+    const cur = getCurrentQuestion();
+    if(!cur) return;
+    if(removeFromWrongListByQA(cur.q, cur.a)){
+      render();
+    }
+  }
+
+  function nextQuestion(){
+    const info=currentListAndIndex();
+    if(info.total===0){ render(); return; }
+    if(info.listType==='normal'){
+      idxNormal++;
+      if(idxNormal>info.total) idxNormal=info.total;
+    } else {
+      idxReview++;
+      if(idxReview>info.total) idxReview=info.total;
+    }
+    saveAll();
+    render();
+  }
+
+  function prevQuestion(){
+    const info=currentListAndIndex();
+    if(info.total===0){ render(); return; }
+    if(info.listType==='normal'){
+      if(idxNormal<=0) return;
+      idxNormal = Math.max(0, idxNormal-1);
+      const prev = questions[orderNormal[idxNormal]];
+      if(prev) removeFromWrongListByQA(prev.q,prev.a);
+    } else {
+      if(idxReview<=0) return;
+      idxReview=Math.max(0, idxReview-1);
+    }
+    saveAll();
+    render();
+  }
+
+  function removeFromWrongListByQA(q,a){
+    const i = wrongList.findIndex(it => it.q === q && it.a === a);
+    if(i!==-1){
+      wrongList.splice(i,1);
+      // 순서 재구성 및 인덱스 보정
+      orderReview = Array.from({length: wrongList.length}, (_,k)=>k);
+      if(idxReview >= wrongList.length){
+        idxReview = Math.max(0, wrongList.length - 1);
+      }
+      saveAll();
+      updateToggleText();
+      return true;
+    }
+    return false;
+  }
+
+  function restartReview(){
+    idxReview=0;
+    saveAll();
+    render();
+  }
+
+  function toggleMode(){
+    mode = (mode==='normal')?'review':'normal';
+    localStorage.setItem(KEY.MODE, mode);
+    if(mode==='review' && wrongList.length===0){
+      alert('복습할 오답이 없습니다.');
+      mode='normal';
+      localStorage.setItem(KEY.MODE, mode);
+      return;
+    }
+    ensureOrders();
+    render();
+  }
+
+  function resetProgress(){
+    if(!confirm('진행 상황(섞인 순서 및 인덱스)과 오답 목록을 초기화할까요?')) return;
+    clearAll();
+    ensureOrders();
+    saveAll();
+    render();
+  }
+
+  elBtnShow.addEventListener('click', showAnswer);
+  elBtnWrong.addEventListener('click', markWrong);
+  elBtnNext.addEventListener('click', nextQuestion);
+  elBtnPrev.addEventListener('click', prevQuestion);
+  elBtnToggle.addEventListener('click', toggleMode);
+  elBtnReset.addEventListener('click', resetProgress);
+  elBtnRestartReview.addEventListener('click', restartReview);
+  elBtnRemoveWrong.addEventListener('click', removeWrong);
+
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', ()=>{
+      navigator.serviceWorker.register('sw.js?v=5').catch(e=>{
+        console.warn('ServiceWorker 등록 실패:', e);
+      });
+    });
+  }
+
+  ensureOrders();
+  render();
+</script>
+</body>
+</html>
